@@ -176,7 +176,7 @@ export default function ProfilForm() {
             "Password belum memenuhi ketentuan. Gunakan minimal 6 karakter.",
           );
         } else {
-          setError("Gagal memproses pendaftaran. Silakan coba lagi.");
+          setError("Gagal memuat profil kandidat. Silakan coba refresh halaman.");
         }
 
         setLoading(false);
@@ -184,7 +184,31 @@ export default function ProfilForm() {
       }
 
       if (!data) {
-        router.push("/login?redirectTo=/profil");
+        const fullNameFromMetadata =
+          typeof user.user_metadata?.full_name === "string"
+            ? user.user_metadata.full_name
+            : "";
+
+        setProfileId("");
+        setFullName(fullNameFromMetadata);
+        setPhone("");
+        setProvinceId("");
+        setProvinceName("");
+        setCityId("");
+        setCityName("");
+        setAddressDetail("");
+        setBirthDate("");
+        setEducationLevel("");
+        setMajor("");
+        setExperienceMonths("0");
+        setSkills("");
+        setLinkedinUrl("");
+        setGithubUrl("");
+        setPortfolioUrl("");
+        setCvFileName("");
+        setAvatarUrl("");
+
+        setLoading(false);
         return;
       }
 
@@ -426,15 +450,38 @@ export default function ProfilForm() {
       updatePayload.cv_url = finalCvUrl;
     }
 
-    const { error: updateError } = await supabase
-      .from("candidate_profiles")
-      .update(updatePayload)
-      .eq("id", profileId);
+    let saveError: { message: string } | null = null;
+    let savedProfileId = profileId;
 
-    if (updateError) {
-      setError(updateError.message);
+    if (profileId) {
+      const { error: updateError } = await supabase
+        .from("candidate_profiles")
+        .update(updatePayload)
+        .eq("id", profileId);
+
+      saveError = updateError;
+    } else {
+      const { data: insertedProfile, error: insertError } = await supabase
+        .from("candidate_profiles")
+        .insert({
+          user_id: userId,
+          ...updatePayload,
+        })
+        .select("id")
+        .single();
+
+      saveError = insertError;
+      savedProfileId = insertedProfile?.id || "";
+    }
+
+    if (saveError) {
+      setError(saveError.message);
       setSaving(false);
       return;
+    }
+
+    if (savedProfileId) {
+      setProfileId(savedProfileId);
     }
 
     setAvatarUrl(finalAvatarUrl);
@@ -443,7 +490,7 @@ export default function ProfilForm() {
     setPreviewAvatar("");
     setCvFile(null);
 
-    setMessage("Profil berhasil diperbarui. Kamu akan diarahkan ke beranda.");
+    setMessage("Profil berhasil diperbarui. Kamu akan diarahkan ke halaman berikutnya.");
     setSaving(false);
 
     setTimeout(() => {
@@ -728,8 +775,7 @@ export default function ProfilForm() {
                   </div>
 
                   <p className="mt-2 text-xs text-slate-400">
-                    Pengalaman kerja diisi dalam bulan. Contoh: 12 = 1 tahun, 18
-                    = 1 tahun 6 bulan.
+                    Pengalaman kerja diisi dalam bulan.
                   </p>
                 </div>
 

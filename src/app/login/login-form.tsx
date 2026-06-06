@@ -94,16 +94,44 @@ export default function LoginForm() {
       return;
     }
 
-    const { data: profile, error: profileError } = await supabase
+    let { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (profileError || !profile) {
-      setError("Profile user tidak ditemukan.");
+    if (profileError) {
+      setError("Gagal membaca data akun. Silakan coba login ulang.");
       setLoading(false);
       return;
+    }
+
+    if (!profile) {
+      const fullNameFromMetadata =
+        typeof user.user_metadata?.full_name === "string"
+          ? user.user_metadata.full_name
+          : user.email?.split("@")[0] || "Kandidat";
+
+      const { data: newProfile, error: createProfileError } = await supabase
+        .from("profiles")
+        .insert({
+          id: user.id,
+          email: user.email,
+          full_name: fullNameFromMetadata,
+          role: "candidate",
+        })
+        .select("role")
+        .single();
+
+      if (createProfileError || !newProfile) {
+        setError(
+          "Akun berhasil login, tetapi profil akun belum siap. Silakan hubungi admin.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      profile = newProfile;
     }
 
     if (profile.role === "hr") {
@@ -116,17 +144,23 @@ export default function LoginForm() {
     setLoading(false);
   };
 
-  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
     setLoading(true);
     setError(null);
     setMessage(null);
 
+    const origin =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "http://localhost:3000";
+
     const { error: registerError } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: `${origin}/login`,
         data: {
           full_name: fullName,
         },
